@@ -159,7 +159,7 @@ def process_frame():
                             if np.linalg.norm(positions[i] - positions[j]) < 1.0:
                                 alerts.append("Two bodies < 1m apart!")
 
-                # Phone detection - removed is_new check
+                # Phone detection - fixed implementation
                 if tracking_state["features"]["phone"] and tracking_state["bodies"].body_list:
                     for body in tracking_state["bodies"].body_list:
                         kp = body.keypoint_2d
@@ -194,6 +194,8 @@ def process_frame():
                         
                         tracking_state["attendance"] = f"{status} ({present} / {tracking_state['registered_students']})"
                         last_occupancy_update = now
+                else:
+                    tracking_state["attendance"] = "N/A"
 
                 # Update HVAC status with reduced frequency
                 if now - last_hvac_update >= hvac_update_interval:
@@ -267,13 +269,18 @@ def initialize():
 
 @app.route('/api/status', methods=['GET'])
 def get_status():
-    return jsonify({
-        "attendance": tracking_state["attendance"],
+    status = {
         "num_bodies": tracking_state["num_bodies"],
         "alerts": tracking_state["alerts"],
         "hvac": tracking_state["hvac"],
         "is_paused": tracking_state["is_paused"]
-    })
+    }
+    
+    # Only include attendance if it's not N/A
+    if tracking_state["attendance"] != "N/A":
+        status["attendance"] = tracking_state["attendance"]
+        
+    return jsonify(status)
 
 @app.route('/api/pause', methods=['POST'])
 def pause():
