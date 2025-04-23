@@ -55,6 +55,8 @@ tracking_state = {
     "scale": None
 }
 
+tracking_state_lock = threading.Lock()
+
 def initialize_camera(data):
     print("\n=== Camera Initialization Started ===")
     try:
