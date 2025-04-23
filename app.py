@@ -349,21 +349,21 @@ def update_features():
         data = request.get_json()
         print(f"Received feature update request: {data}")  # Debug logging
         
-        # Get values with explicit type checking
-        phone_detection = data.get('phone_detection')
+        # Get values with explicit type checking, supporting both parameter names
+        phone_detection = data.get('phone_detection', data.get('phone'))
         if phone_detection is None:
-            print("Warning: phone_detection not provided in request")
-            return jsonify({'error': 'phone_detection value is required'}), 400
+            print("Warning: phone_detection/phone not provided in request")
+            return jsonify({'error': 'phone_detection/phone value is required'}), 400
             
-        social_distancing = data.get('social_distancing', False)
+        social_distancing = data.get('social_distancing', data.get('covid', False))
         attendance = data.get('attendance', False)
         registered_students = data.get('registered_students', 0)
         
         # Update tracking state with thread safety
         with tracking_state_lock:
-            tracking_state['phone_detection'] = bool(phone_detection)
-            tracking_state['social_distancing'] = bool(social_distancing)
-            tracking_state['attendance'] = bool(attendance)
+            tracking_state['features']['phone'] = bool(phone_detection)
+            tracking_state['features']['covid'] = bool(social_distancing)
+            tracking_state['features']['attendance'] = bool(attendance)
             tracking_state['registered_students'] = int(registered_students)
             
         print(f"Updated tracking state: {tracking_state}")  # Debug logging
