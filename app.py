@@ -357,6 +357,7 @@ def update_features():
             print("❌ No data received in request")
             return jsonify({"error": "No data received"}), 400
         
+        # Update feature flags
         tracking_state["features"]["covid"] = data.get("covid", tracking_state["features"]["covid"])
         tracking_state["features"]["phone"] = data.get("phone", tracking_state["features"]["phone"])
         tracking_state["features"]["attendance"] = data.get("attendance", tracking_state["features"]["attendance"])
@@ -369,6 +370,26 @@ def update_features():
         print(f"- Phone detection: {tracking_state['features']['phone']}")
         print(f"- Attendance tracking: {tracking_state['features']['attendance']}")
         print(f"- Registered students: {tracking_state['registered_students']}")
+
+        # Reconfigure body tracking parameters
+        if tracking_state["zed"] is not None:
+            # Disable current body tracking
+            tracking_state["zed"].disable_body_tracking()
+            
+            # Configure new body tracking parameters
+            tracking_state["bt_params"] = sl.BodyTrackingParameters()
+            tracking_state["bt_params"].enable_tracking = True
+            tracking_state["bt_params"].detection_model = sl.BODY_TRACKING_MODEL.HUMAN_BODY_FAST
+            tracking_state["bt_params"].body_format = sl.BODY_FORMAT.BODY_18
+            tracking_state["bt_params"].enable_body_fitting = True
+
+            # Enable body tracking with new parameters
+            err = tracking_state["zed"].enable_body_tracking(tracking_state["bt_params"])
+            if err != sl.ERROR_CODE.SUCCESS:
+                print(f"❌ Error reconfiguring body tracking: {err}")
+                return jsonify({"error": "Failed to reconfigure body tracking"}), 500
+            
+            print("✅ Body tracking reconfigured successfully")
         
         return jsonify({"status": "features updated"})
     except Exception as e:
