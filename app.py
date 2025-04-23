@@ -369,12 +369,20 @@ def update_features():
         
         # Update tracking state with thread safety
         with tracking_state_lock:
-            tracking_state['features']['phone'] = bool(phone_detection)
-            tracking_state['features']['covid'] = bool(social_distancing)
-            tracking_state['features']['attendance'] = bool(attendance)
-            tracking_state['registered_students'] = registered_students
+            # Only update the features that were sent
+            if 'phone' in data or 'phone_detection' in data:
+                tracking_state['features']['phone'] = bool(phone_detection)
+            if 'covid' in data or 'social_distancing' in data:
+                tracking_state['features']['covid'] = bool(social_distancing)
+            if 'attendance' in data:
+                tracking_state['features']['attendance'] = bool(attendance)
+            if 'registered_students' in data:
+                tracking_state['registered_students'] = registered_students
             
-        print(f"Updated tracking state: {tracking_state}")  # Debug logging
+        # Log only the relevant state changes
+        print(f"Updated features: {tracking_state['features']}")
+        print(f"Updated registered_students: {tracking_state['registered_students']}")
+        
         return jsonify({'status': 'success'})
     except Exception as e:
         print(f"Error updating features: {str(e)}")
