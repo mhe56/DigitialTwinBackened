@@ -345,57 +345,32 @@ def get_hvac():
 
 @app.route('/api/update_features', methods=['POST'])
 def update_features():
-    print("\n=== Received Feature Update Request ===")
     try:
-        data = request.json
-        print(f"Received data: {data}")
+        data = request.get_json()
+        print(f"Received feature update request: {data}")  # Debug logging
         
-        if not data:
-            print("❌ No data received in request")
-            return jsonify({"error": "No data received"}), 400
-        
-        # Update feature flags
-        tracking_state["features"]["covid"] = data.get("covid", tracking_state["features"]["covid"])
-        tracking_state["features"]["phone"] = data.get("phone", tracking_state["features"]["phone"])
-        tracking_state["features"]["attendance"] = data.get("attendance", tracking_state["features"]["attendance"])
-        
-        if data.get("registered_students") is not None:
-            tracking_state["registered_students"] = data["registered_students"]
-        
-        print(f"Updated feature flags:")
-        print(f"- COVID monitoring: {tracking_state['features']['covid']}")
-        print(f"- Phone detection: {tracking_state['features']['phone']}")
-        print(f"- Attendance tracking: {tracking_state['features']['attendance']}")
-        print(f"- Registered students: {tracking_state['registered_students']}")
-
-        # Reconfigure body tracking parameters
-        if tracking_state["zed"] is not None:
-            # Disable current body tracking
-            tracking_state["zed"].disable_body_tracking()
+        # Get values with explicit type checking
+        phone_detection = data.get('phone_detection')
+        if phone_detection is None:
+            print("Warning: phone_detection not provided in request")
+            return jsonify({'error': 'phone_detection value is required'}), 400
             
-            # Configure new body tracking parameters
-            tracking_state["bt_params"] = sl.BodyTrackingParameters()
-            tracking_state["bt_params"].enable_tracking = True
-            tracking_state["bt_params"].detection_model = sl.BODY_TRACKING_MODEL.HUMAN_BODY_FAST
-            tracking_state["bt_params"].body_format = sl.BODY_FORMAT.BODY_18
-            tracking_state["bt_params"].enable_body_fitting = True
-
-            # Enable body tracking with new parameters
-            err = tracking_state["zed"].enable_body_tracking(tracking_state["bt_params"])
-            if err != sl.ERROR_CODE.SUCCESS:
-                print(f"❌ Error reconfiguring body tracking: {err}")
-                return jsonify({"error": "Failed to reconfigure body tracking"}), 500
-            
-            print("✅ Body tracking reconfigured successfully")
-
-            # Reset runtime parameters
-            tracking_state["rt_params"] = sl.BodyTrackingRuntimeParameters()
-            tracking_state["rt_params"].detection_confidence_threshold = 40
+        social_distancing = data.get('social_distancing', False)
+        attendance = data.get('attendance', False)
+        registered_students = data.get('registered_students', 0)
         
-        return jsonify({"status": "features updated"})
+        # Update tracking state with thread safety
+        with tracking_state_lock:
+            tracking_state['phone_detection'] = bool(phone_detection)
+            tracking_state['social_distancing'] = bool(social_distancing)
+            tracking_state['attendance'] = bool(attendance)
+            tracking_state['registered_students'] = int(registered_students)
+            
+        print(f"Updated tracking state: {tracking_state}")  # Debug logging
+        return jsonify({'status': 'success'})
     except Exception as e:
-        print(f"❌ Error updating features: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        print(f"Error updating features: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 
