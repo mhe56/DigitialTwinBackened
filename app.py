@@ -127,6 +127,10 @@ def initialize_camera(data):
 def process_frame():
     print("\n=== Starting Frame Processing Thread ===")
     frame_count = 0
+    last_occupancy_update = 0
+    last_hvac_update = 0
+    occupancy_update_interval = 2.0  # Update occupancy every 2 seconds
+    hvac_update_interval = 300.0  # Update HVAC every 5 minutes
     
     while True:
         if tracking_state["is_paused"]:
@@ -142,6 +146,7 @@ def process_frame():
                 
                 num = len(tracking_state["bodies"].body_list)
                 alerts = []
+                now = time.time()
 
                 # COVID monitoring (Social Distancing)
                 if tracking_state["features"]["covid"]:
@@ -154,8 +159,8 @@ def process_frame():
                             if np.linalg.norm(positions[i] - positions[j]) < 1.0:
                                 alerts.append("Two bodies < 1m apart!")
 
-                # Phone detection
-                if tracking_state["features"]["phone"] and tracking_state["bodies"].is_new and tracking_state["bodies"].body_list:
+                # Phone detection - removed is_new check
+                if tracking_state["features"]["phone"] and tracking_state["bodies"].body_list:
                     for body in tracking_state["bodies"].body_list:
                         kp = body.keypoint_2d
                         if len(kp) > 1:
@@ -164,38 +169,41 @@ def process_frame():
                             if abs(nose_y - neck_y) < 40:
                                 alerts.append(f"Phone usage alert for body {body.id}!")
 
-                # Attendance tracking
+                # Attendance tracking with debouncing
                 if tracking_state["is_lecture_active"] and tracking_state["registered_students"] is not None:
-                    present = num
-                    tracking_state["att_max"] = max(tracking_state["att_max"], present)
-                    tracking_state["att_min"] = min(tracking_state["att_min"], present)
-                    now = time.time()
-                    
-                    # Track individual body durations
-                    for b in tracking_state["bodies"].body_list:
-                        bid = int(b.id) if hasattr(b, 'id') else hash(b)
-                        if bid not in tracking_state["tracked_bodies"]:
-                            tracking_state["tracked_bodies"][bid] = {"first": now, "last": now}
-                        tracking_state["tracked_bodies"][bid]["last"] = now
+                    if now - last_occupancy_update >= occupancy_update_interval:
+                        present = num
+                        tracking_state["att_max"] = max(tracking_state["att_max"], present)
+                        tracking_state["att_min"] = min(tracking_state["att_min"], present)
+                        
+                        # Track individual body durations
+                        for b in tracking_state["bodies"].body_list:
+                            bid = int(b.id) if hasattr(b, 'id') else hash(b)
+                            if bid not in tracking_state["tracked_bodies"]:
+                                tracking_state["tracked_bodies"][bid] = {"first": now, "last": now}
+                            tracking_state["tracked_bodies"][bid]["last"] = now
 
-                    # Calculate attendance ratio and status
-                    ratio = present / tracking_state["registered_students"]
-                    if ratio < 1/3:
-                        status = "Poor"
-                    elif ratio <= 2/3:
-                        status = "Fair"
-                    else:
-                        status = "Good"
-                    
-                    tracking_state["attendance"] = f"{status} ({present} / {tracking_state['registered_students']})"
+                        # Calculate attendance ratio and status
+                        ratio = present / tracking_state["registered_students"]
+                        if ratio < 1/3:
+                            status = "Poor"
+                        elif ratio <= 2/3:
+                            status = "Fair"
+                        else:
+                            status = "Good"
+                        
+                        tracking_state["attendance"] = f"{status} ({present} / {tracking_state['registered_students']})"
+                        last_occupancy_update = now
 
-                # Update HVAC status
-                try:
-                    result = predict_hvac_action(num)
-                    tracking_state["hvac"] = result.get('suggestion', 'N/A')
-                except Exception as e:
-                    print(f"Error getting HVAC suggestion: {str(e)}")
-                    tracking_state["hvac"] = "N/A"
+                # Update HVAC status with reduced frequency
+                if now - last_hvac_update >= hvac_update_interval:
+                    try:
+                        result = predict_hvac_action(num)
+                        tracking_state["hvac"] = result.get('suggestion', 'N/A')
+                        last_hvac_update = now
+                    except Exception as e:
+                        print(f"Error getting HVAC suggestion: {str(e)}")
+                        tracking_state["hvac"] = "N/A"
 
                 tracking_state["num_bodies"] = num
                 tracking_state["alerts"] = alerts

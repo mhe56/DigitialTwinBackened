@@ -16,6 +16,7 @@ warnings.filterwarnings('ignore', category=InconsistentVersionWarning)
 
 import requests
 import joblib
+import numpy as np
 
 # === Arduino Cloud API Setup ===
 CLIENT_ID     = "gbx8Qihkr1iDPHb5MwCMgNx1MGM1G4tT"
@@ -139,7 +140,7 @@ def predict_hvac_action(occupancy, city="Beirut"):
         weather_data = get_cached_weather_data(city)
         
         # Build input for model
-        sample = [[
+        sample = np.array([[
             sensor_data.get("temperature", 25),
             sensor_data.get("humidity", 50),
             sensor_data.get("sound_level", 50),
@@ -147,14 +148,10 @@ def predict_hvac_action(occupancy, city="Beirut"):
             sensor_data.get("airquality", 50),
             weather_data["temp"],
             occupancy
-        ]]
+        ]])
 
-        # Predict with feature names
-        sample_df = pd.DataFrame(sample, columns=[
-            'temperature', 'humidity', 'sound_level', 'lightlevel',
-            'airquality', 'external_temp', 'occupancy'
-        ])
-        pred = _model.predict(sample_df)
+        # Predict
+        pred = _model.predict(sample)
         action = _label_encoder.inverse_transform(pred)[0]
 
         # Suggest adjustment
