@@ -159,7 +159,7 @@ def process_frame():
                             if np.linalg.norm(positions[i] - positions[j]) < 1.0:
                                 alerts.append("Two bodies < 1m apart!")
 
-                # Phone detection - fixed implementation
+                # Phone detection
                 if tracking_state["features"]["phone"] and tracking_state["bodies"].body_list:
                     for body in tracking_state["bodies"].body_list:
                         kp = body.keypoint_2d
@@ -171,29 +171,27 @@ def process_frame():
 
                 # Attendance tracking with debouncing
                 if tracking_state["is_lecture_active"] and tracking_state["registered_students"] is not None:
-                    if now - last_occupancy_update >= occupancy_update_interval:
-                        present = num
-                        tracking_state["att_max"] = max(tracking_state["att_max"], present)
-                        tracking_state["att_min"] = min(tracking_state["att_min"], present)
-                        
-                        # Track individual body durations
-                        for b in tracking_state["bodies"].body_list:
-                            bid = int(b.id) if hasattr(b, 'id') else hash(b)
-                            if bid not in tracking_state["tracked_bodies"]:
-                                tracking_state["tracked_bodies"][bid] = {"first": now, "last": now}
-                            tracking_state["tracked_bodies"][bid]["last"] = now
+                    present = num
+                    tracking_state["att_max"] = max(tracking_state["att_max"], present)
+                    tracking_state["att_min"] = min(tracking_state["att_min"], present)
+                    
+                    # Track individual body durations
+                    for b in tracking_state["bodies"].body_list:
+                        bid = int(b.id) if hasattr(b, 'id') else hash(b)
+                        if bid not in tracking_state["tracked_bodies"]:
+                            tracking_state["tracked_bodies"][bid] = {"first": now, "last": now}
+                        tracking_state["tracked_bodies"][bid]["last"] = now
 
-                        # Calculate attendance ratio and status
-                        ratio = present / tracking_state["registered_students"]
-                        if ratio < 1/3:
-                            status = "Poor"
-                        elif ratio <= 2/3:
-                            status = "Fair"
-                        else:
-                            status = "Good"
-                        
-                        tracking_state["attendance"] = f"{status} ({present} / {tracking_state['registered_students']})"
-                        last_occupancy_update = now
+                    # Calculate attendance ratio and status
+                    ratio = present / tracking_state["registered_students"]
+                    if ratio < 1/3:
+                        status = "Poor"
+                    elif ratio <= 2/3:
+                        status = "Fair"
+                    else:
+                        status = "Good"
+                    
+                    tracking_state["attendance"] = f"{status} ({present} / {tracking_state['registered_students']})"
                 else:
                     tracking_state["attendance"] = "N/A"
 
@@ -313,7 +311,6 @@ def stop_lecture():
         return jsonify({"error": "No active lecture"}), 400
     
     tracking_state["is_lecture_active"] = False
-    tracking_state["features"]["attendance"] = False
     
     # Generate final report
     lines = [
@@ -390,6 +387,10 @@ def update_features():
                 return jsonify({"error": "Failed to reconfigure body tracking"}), 500
             
             print("✅ Body tracking reconfigured successfully")
+
+            # Reset runtime parameters
+            tracking_state["rt_params"] = sl.BodyTrackingRuntimeParameters()
+            tracking_state["rt_params"].detection_confidence_threshold = 40
         
         return jsonify({"status": "features updated"})
     except Exception as e:
