@@ -359,14 +359,20 @@ def update_features():
             
         social_distancing = data.get('social_distancing', data.get('covid', False))
         attendance = data.get('attendance', False)
+        
+        # Handle registered_students more robustly
         registered_students = data.get('registered_students', 0)
+        try:
+            registered_students = int(registered_students) if registered_students else 0
+        except (ValueError, TypeError):
+            registered_students = 0
         
         # Update tracking state with thread safety
         with tracking_state_lock:
             tracking_state['features']['phone'] = bool(phone_detection)
             tracking_state['features']['covid'] = bool(social_distancing)
             tracking_state['features']['attendance'] = bool(attendance)
-            tracking_state['registered_students'] = int(registered_students)
+            tracking_state['registered_students'] = registered_students
             
         print(f"Updated tracking state: {tracking_state}")  # Debug logging
         return jsonify({'status': 'success'})
