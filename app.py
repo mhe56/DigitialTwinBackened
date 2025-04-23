@@ -347,46 +347,32 @@ def get_hvac():
 
 @app.route('/api/update_features', methods=['POST'])
 def update_features():
+    print("\n=== Received Feature Update Request ===")
     try:
-        data = request.get_json()
-        print(f"Received feature update request: {data}")  # Debug logging
+        data = request.json
+        print(f"Received data: {data}")
         
-        # Get values with explicit type checking, supporting both parameter names
-        phone_detection = data.get('phone_detection', data.get('phone'))
-        if phone_detection is None:
-            print("Warning: phone_detection/phone not provided in request")
-            return jsonify({'error': 'phone_detection/phone value is required'}), 400
-            
-        social_distancing = data.get('social_distancing', data.get('covid', False))
-        attendance = data.get('attendance', False)
+        if not data:
+            print("❌ No data received in request")
+            return jsonify({"error": "No data received"}), 400
         
-        # Handle registered_students more robustly
-        registered_students = data.get('registered_students', 0)
-        try:
-            registered_students = int(registered_students) if registered_students else 0
-        except (ValueError, TypeError):
-            registered_students = 0
+        tracking_state["features"]["covid"] = data.get("covid", tracking_state["features"]["covid"])
+        tracking_state["features"]["phone"] = data.get("phone", tracking_state["features"]["phone"])
+        tracking_state["features"]["attendance"] = data.get("attendance", tracking_state["features"]["attendance"])
         
-        # Update tracking state with thread safety
-        with tracking_state_lock:
-            # Only update the features that were sent
-            if 'phone' in data or 'phone_detection' in data:
-                tracking_state['features']['phone'] = bool(phone_detection)
-            if 'covid' in data or 'social_distancing' in data:
-                tracking_state['features']['covid'] = bool(social_distancing)
-            if 'attendance' in data:
-                tracking_state['features']['attendance'] = bool(attendance)
-            if 'registered_students' in data:
-                tracking_state['registered_students'] = registered_students
-            
-        # Log only the relevant state changes
-        print(f"Updated features: {tracking_state['features']}")
-        print(f"Updated registered_students: {tracking_state['registered_students']}")
+        if data.get("registered_students") is not None:
+            tracking_state["registered_students"] = data["registered_students"]
         
-        return jsonify({'status': 'success'})
+        print(f"Updated feature flags:")
+        print(f"- COVID monitoring: {tracking_state['features']['covid']}")
+        print(f"- Phone detection: {tracking_state['features']['phone']}")
+        print(f"- Attendance tracking: {tracking_state['features']['attendance']}")
+        print(f"- Registered students: {tracking_state['registered_students']}")
+        
+        return jsonify({"status": "features updated"})
     except Exception as e:
-        print(f"Error updating features: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        print(f"❌ Error updating features: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 
